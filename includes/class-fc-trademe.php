@@ -116,8 +116,9 @@ class Fc_Trademe {
 		 * The class responsible for defining all actions that occur in the admin area.
 		 */
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-fc-trademe-api.php';
-		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin.php';
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin-woo-sync.php';
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin.php';
+		
 		
 		/**
 		 * The class responsible for defining all actions that occur in the public-facing

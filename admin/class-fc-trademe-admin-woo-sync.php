@@ -20,29 +20,23 @@
  * @subpackage Trademe/admin
  * @author     AmmadJ <ammad@kariger.pk>
  */
-class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
+trait Fc_Trademe_Admin_Woo_Sync 
 {
-    function __construct()
-    {
-    }
-    /**
-     * Method to Add/Update Bookcloud Products to Woo
-     *
-     * @return void
-     */
+    
+    
     public function add_update_wooProduct($productData, $post_id)
     {
-
+      
         //BookCloud Panel option
         if (empty($post_id)) {
-            if (empty($productData['description'])) {
-                $productData['description'] = 'No data';
+            if (empty($productData['Body'])) {
+                $productData['Body'] = 'No data';
             }
             $post = array(
                 'post_author' => get_current_user_id(),
-                'post_content' => $productData['description'],
+                'post_content' => $productData['Body'],
                 'post_status' => "publish",
-                'post_title' => $productData['title'],
+                'post_title' => $productData['Title'],
                 'post_parent' => '',
                 'post_type' => "product",
             );
@@ -53,112 +47,87 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
         } else {
             $post = array(
                 'ID' => esc_sql($post_id),
-                'post_content' => wp_kses_post($productData['description']),
-                'post_title' => wp_strip_all_tags($productData['title'])
+                'post_content' => wp_kses_post($productData['Body']),
+                'post_title' => wp_strip_all_tags($productData['Title'])
             );
             $result = wp_update_post($post, true);
+            echo ' Fetched The Item and id is : ' . $post_id;
         }
 
 
 
-        wp_set_object_terms($post_id, intval($productData['category']), 'product_cat');
+        wp_set_object_terms($post_id, $productData['CategoryName'], 'product_cat');
+
+        if($productData['IsNew']==1){
+            update_post_meta($post_id, '_condition', 'New');
+           // wp_set_object_terms($post_id, 'New', 'product_cat');
+        }else{
+            update_post_meta($post_id, '_condition', 'Used');
+            //wp_set_object_terms($post_id, 'Used', 'product_cat');
+        }
+        
+
         wp_set_object_terms($post_id, 'simple', 'product_type');
         $tags = explode(',', $productData['subjects']);
         wp_set_object_terms($post_id, $tags, 'product_tag');
         update_post_meta($post_id, '_visibility', 'visible');
-        update_post_meta($post_id, '_bcID', $productData['id']);
+        update_post_meta($post_id, '_ListingId', $productData['ListingId']);
         update_post_meta($post_id, '_stock_status', 'instock');
         update_post_meta($post_id, 'total_sales', '0');
         update_post_meta($post_id, '_downloadable', 'no');
         update_post_meta($post_id, '_virtual', 'no');
 
-        update_post_meta($post_id, '_regular_price', $productData['price']['IT']);
-        update_post_meta($post_id, '_sale_price', $productData['discount']);
+        update_post_meta($post_id, '_regular_price', $productData['StartPrice']);
+        update_post_meta($post_id, '_sale_price', $productData['BuyNowPrice']);
         update_post_meta($post_id, '_purchase_note', "");
         update_post_meta($post_id, '_featured', "no");
-        update_post_meta($post_id, '_weight', $productData['weight']);
+        update_post_meta($post_id, '_weight', "");
         update_post_meta($post_id, '_length', "");
         update_post_meta($post_id, '_width', "");
         update_post_meta($post_id, '_height', "");
-        update_post_meta($post_id, '_sku', $productData['sku']);
+        update_post_meta($post_id, '_sku', $productData['SKU']);
         update_post_meta($post_id, '_product_attributes', array());
-        update_post_meta($post_id, '_sale_price_dates_from', "");
-        update_post_meta($post_id, '_sale_price_dates_to', "");
-        update_post_meta($post_id, '_price', $productData['price']['IT']);
+        update_post_meta($post_id, '_sale_price_dates_from', $productData['StartDate']);
+        update_post_meta($post_id, '_sale_price_dates_to',$productData['EndDate']);
+        update_post_meta($post_id, '_price', $productData['BuyNowPrice']);
         update_post_meta($post_id, '_sold_individually', "");
         update_post_meta($post_id, '_manage_stock', "yes");
         update_post_meta($post_id, '_backorders', "no");
-        update_post_meta($post_id, '_stock', $productData['stock']);
-        $bookcloud_api = get_option('fc-bookcloud-integration-options-admin-page');
-        $array = array(
-            'fc-fieldset-option' => array(
-                'fc-id' => $productData['id'],
-                'fc-type' => $productData['type'],
-                'fc-isbn' => $productData['isbn'],
-                'fc-ean' => $productData['ean'],
-                'fc-market' => 'WOO_' . $post_id,
-                'fc-language' => $productData['language'],
-                'fc-pages' => $productData['pages'],
-                'fc-conditions' => $productData['conditions'],
-                'fc-binding' => $productData['binding'],
-                'fc-created_at' => date('Y/m/d', $productData['created_at']),
-                'fc-updated_at' => date('Y/m/d', $productData['updated_at']),
-            ),
-            'fc-fieldset-info' => array(
-                'fc-author' => $productData['author'],
-                'fc-curator' => $productData['curator'],
-                'fc-translator' => $productData['translator'],
-                'fc-illustrator' => $productData['illustrator'],
-                'fc-ispartof' => $productData['ispartof'],
-                'fc-publishing_year' => $productData['publishing_year'],
-                'fc-publishing_place' => $productData['publishing_place'],
-                'fc-publisher' => $productData['publisher'],
-                'fc-edition' => $productData['edition'],
-                'fc-collection' => $productData['collection'],
-                'fc-volumes' => $productData['volumes'],
-            )
-        );
-        update_post_meta($post_id, 'fc-bookcloud-integration', $array);
-        $array = array(
-            'fc-fieldset-info' => array(
-                'fc-isbn' => $productData['isbn'],
-                'fc-ean' => $productData['ean'],
-                'fc-pages' => $productData['pages'],
+        update_post_meta($post_id, '_stock', $productData['Quantity']);
+     
+        foreach ($productData['Attributes'] as $key => $attr) {
+            
+            wp_set_object_terms( $post_id, $attr['Value'], $attr['Name'], true );
 
-                'fc-publishing_year' => $productData['publishing_year'],
-                'fc-publishing_place' => $productData['publishing_place'],
+            $att = Array($attr['Name'] =>Array(
+                   'name'=> $attr['DisplayName'],
+                   'value'=>$attr['Value'],
+                   'is_visible' => '1',
+                   'is_taxonomy' => '0'
+                 ));
+            
+            update_post_meta( $post_id, '_product_attributes', $att);
 
-            )
-        );
-        update_post_meta($post_id, 'fc-bookcloud-integration2', $array);
-        wp_set_object_terms($post_id, $productData['type'], 'bc_type');
-        wp_set_object_terms($post_id, $productData['author'], 'bc_author');
-        wp_set_object_terms($post_id, $productData['curator'], 'bc_editor');
-        wp_set_object_terms($post_id, $productData['translator'], 'bc_translator');
-        wp_set_object_terms($post_id, $productData['illustrator'], 'bc_illustrator');
-        wp_set_object_terms($post_id, $productData['publisher'], 'bc_publisher');
-        wp_set_object_terms($post_id, $productData['volumes'], 'bc_volumes');
-        wp_set_object_terms($post_id, $productData['collection'], 'bc_collection');
-        wp_set_object_terms($post_id, $productData['language'], 'bc_language');
-        wp_set_object_terms($post_id, $productData['conditions'], 'bc_condition');
-        wp_set_object_terms($post_id, $productData['ispartof'], 'bc_ispartof');
-        wp_set_object_terms($post_id, $productData['binding'], 'bc_binding');
-        wp_set_object_terms($post_id, $productData['edition'], 'bc_edition');
+        }
+         
 
 
 
         // // file paths will be stored in an array keyed off md5(file path)
 
-        $this->upload_image($productData['images'][0], $post_id, 'main');
+        $this->upload_image($productData['Photos'][0]['Value']['FullSize'], $post_id, 'main');
         $inc = 0;
-        foreach ($productData['images'] as $key => $imgurl) {
-
+        foreach ($productData['Photos'] as $key => $imgurl) {
+            
             if ($key !== 0) {
-                $attachmentId[] =  $this->upload_image($imgurl, $post_id, 'gallery');
+              echo  $attachmentId[] =  $this->upload_image($imgurl['Value']['FullSize'], $post_id, 'gallery');
+            }else{
+                $attachmentId[] = 0;
             }
         }
-
-        update_post_meta($post_id, '_product_image_gallery', implode(", ", $attachmentId));
+        if( $attachmentId[0] !== 0){
+          update_post_meta($post_id, '_product_image_gallery', implode(", ", $attachmentId));
+        }
     }
     /**
      * Method to Upload Image of BC Products To WOO
@@ -167,11 +136,17 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
      */
     function upload_image($url, $post_id, $type)
     {
+    require_once(ABSPATH . "wp-admin" . '/includes/image.php');
+    require_once(ABSPATH . "wp-admin" . '/includes/file.php');
+    require_once(ABSPATH . "wp-admin" . '/includes/media.php');
+    require_once( ABSPATH . 'wp-admin/includes/post.php' );
         $image = "";
         if ($url != "") {
 
             $file = array();
-            $file['name'] = $url;
+            $file['name'] = basename($url);
+            $title = preg_replace( '/\.[^.]+$/', '', basename( $file['name'] ) );
+            if (!post_exists($title)){
             $file['tmp_name'] = download_url($url);
 
             if (is_wp_error($file['tmp_name'])) {
@@ -191,7 +166,11 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
                     $image = wp_get_attachment_url($attachmentId);
                 }
             }
+        }else{
+            $page = get_page_by_title($title, OBJECT, 'attachment');
+            $attachmentId = $page->ID;
         }
+    }
         return $attachmentId;
     }
     /**
@@ -237,10 +216,8 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
     public function add_on_category($taxonomy)
     {
         //if ( $_REQUEST['taxonomy'] == 'product_cat ') {
-        $_REQUEST['type'] = 'sync_mkt_category';
-
-        $_REQUEST['interval_sec'] = 1;
-        $this->check_sync();
+       
+        
         
         //}
     }
@@ -442,11 +419,11 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
      *
      * @return void
      */
-    public function check_sync()
+    public function sync($type,$data)
     {
         //ini_set('display_errors', 1);
 
-        $bookcloud_api = get_option('fc-bookcloud-integration-options-admin-page');
+        
             
         if ($_REQUEST['type'] == 'order_sync') {
 
@@ -470,21 +447,104 @@ class Fc_Trademe_Admin_Woo_Sync extends Fc_Trademe_API
  
         }
 
-        if ($_REQUEST['type'] == 'sync_bc_category') {
+        if ($type == 'sync_tm_category') {
 
-
+            
+                   
+            $this->set_category($data,'');
+           
 
    
         }
 
-        if ($_REQUEST['type'] == 'sync_overall_category') {
-
-            $_REQUEST['type'] = 'sync_bc_category';
-            $this->check_sync();
-            $_REQUEST['type'] = 'sync_bc_category';
-            $this->check_sync();
-        }
+      
     }
 
-   
+    function set_category($data,$parent_term_id){
+        $i = 0;
+        foreach($data as $cat_data){
+
+        if (!empty($cat_data['Name']) ) {
+
+            
+                $term = get_term_by('slug', $cat_data['Number'], 'product_cat');
+                if (!empty($term)) {
+                    $term_id = $term->term_id;
+                    $term_name = $term->name;
+                    $parent_id = $term->parent_id;
+                    $term_slug = $term->slug;
+                }
+            
+           
+
+            if (!empty($term_name) && sanitize_title(trim($term_name)) ==  sanitize_title($cat_data['Name']) && $term_id !== 1) {
+              
+                echo  '<br>';
+               
+
+                echo 'Updated the Category to WP ID ' . $term_id;
+                '<br>';
+               
+
+                wp_update_term($term_id, 'product_cat', array(
+                    'description' => ' ', // optional
+                                         // optional
+                    'name' =>  $cat_data['Name'] 
+                ));
+                if(isset($cat_data['Subcategories'])){
+                    if($parent_id == 0){
+                        $parent_term_id = $term_id;
+                    }else{
+                       
+                    }
+                   $this->set_category($cat_data['Subcategories'],$parent_term_id );
+                }
+            } else {
+
+
+
+                echo 'Added the Category to WP';
+                echo  '<br>';
+                echo $cat_data['Name'];
+                if(!empty($parent_term_id)){
+                    echo $parent_term_id ;
+                }else{
+                    $parent_term_id = 0;
+                }
+                $resp = wp_insert_term($cat_data['Name'], 'product_cat', array(
+                    'description' => '', // optional
+                    'parent' => $parent_term_id , // optional
+                    'slug' => $cat_data['Number'] 
+
+                ));
+
+               
+                echo '<pre>';
+                
+                if(isset($cat_data['Subcategories'])){
+                   //print_r($cat_data);
+                    
+                    $this->set_category($cat_data['Subcategories'], $resp['term_id']);
+                }
+                
+            }
+            echo  '<br>';
+
+            echo round(memory_get_usage() / 1024 / 1024, 2) . ' MB' . PHP_EOL;
+            echo  '<br>';
+        }else{
+            $term = get_term_by('slug', $cat_data['Number'] , 'product_cat');
+            echo 'Deleted the Category to WP';
+                echo  '<br>';
+                echo sanitize_title($cat_data['Name']);
+                $term_id = $term->term_id;
+                wp_delete_term($term_id,'product_cat');
+        }
+       
+        
+        if(1==$i++){
+        return;
+        }
+    }
+}
 }

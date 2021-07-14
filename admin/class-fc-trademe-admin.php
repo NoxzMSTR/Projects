@@ -22,7 +22,7 @@
  */
 class Fc_Trademe_Admin extends Fc_Trademe_API
 {
-
+	use Fc_Trademe_Admin_Woo_Sync;
 	/**
 	 * The ID of this plugin.
 	 *
@@ -53,10 +53,14 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
+		$this->trademe = get_option($this->plugin_name)['fc_tab'];;
 		$this->admin_init();
+		$this->product_admin_init();
 		$this->fc_activate_api();
 		$this->fc_final_activate_api();
-		$this->fc_trademe_fetch_product();
+		add_action('init', array($this,'fc_trademe_fetch_product'));
+		add_action('init', array($this,'fc_trademe_fetch_category'));
+		
 	}
 
 	/**
@@ -108,7 +112,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 	{
 
 		if (isset($_REQUEST['fc_trademe_activation'])) {
-			$fc_trademe = get_option($this->plugin_name)['fc_tab'];
+			$fc_trademe = $this->trademe;
 
 			if (empty($fc_trademe['fc_group']['fc_pre_token'])) {
 				$url = 'https://secure.trademe.co.nz/Oauth/RequestToken?scope=' . implode(',', $fc_trademe['fc_scope']);
@@ -137,7 +141,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 	{
 
 		if (isset($_REQUEST['fc_trademe_final_activation'])) {
-			$fc_trademe = get_option($this->plugin_name)['fc_tab'];
+			$fc_trademe = $this->trademe;
 
 			if (empty($fc_trademe['fc_group']['fc_final_token'])) {
 				$url = 'https://secure.trademe.co.nz/Oauth/AccessToken';
@@ -163,27 +167,83 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 			}
 		}
 	}
-	private function fc_trademe_fetch_product()
+	public function fc_trademe_fetch_product()
 	{
 
 		if (isset($_REQUEST['fc_trademe_sync_product'])) {
-			$fc_trademe = get_option($this->plugin_name)['fc_tab'];
+			$fc_trademe = $this->trademe;
 
 
-			$url = 'https://api.trademe.co.nz/v1/MyTradeMe/Watchlist/All.json';
+			$url = 'https://api.trademe.co.nz/v1/MyTradeMe/SellingItems/All.json';
 
 			$header = array(
-				'Authorization' => 'OAuth oauth_consumer_key="' . $fc_trademe['fc_consumer_key'] . '",oauth_token="' . $fc_trademe['fc_final_token'] . '",oauth_signature_method="' . $fc_trademe['fc_signature_method'] . '",oauth_callback="' . $fc_trademe['fc_callback_url'] . '",oauth_signature="' . $fc_trademe['fc_signature'] . '%26' . $fc_trademe['fc_final_token_secret'] . '"'
+				'Authorization' => 'OAuth oauth_consumer_key="' . $fc_trademe['fc_consumer_key'] . '",oauth_token="' . $fc_trademe['fc_group']['fc_final_token'] . '",oauth_signature_method="' . $fc_trademe['fc_signature_method'] . '",oauth_callback="' . $fc_trademe['fc_callback_url'] . '",oauth_signature="' . $fc_trademe['fc_signature'] . '%26' . $fc_trademe['fc_group']['fc_final_token_secret'] . '"'
 			);
 			$method = 'GET';
 			$post_data = '';
 
 			$data = $this->api($url, $header, $method, $post_data);
-			parse_str($data['body'], $output);
+			
+			$data = json_decode($data['body'],true);
 
 
+			
+			foreach ($data['List'] as $productData) {
 
-			print_r($data['body']);
+				$url = 'https://api.trademe.co.nz/v1/Listings/'.$productData['ListingId'].'.json';
+				$data = $this->api($url, $header, $method, $post_data);
+				$data = json_decode($data['body'],true);
+				$args = array(
+					'meta_key' => '_ListingId',
+					'meta_value' => $productData['ListingId'],
+					'post_type' => 'product'
+				);
+			
+				$query = new WP_Query($args);
+				
+				if ($query->have_posts()) {
+					
+					while ($query->have_posts()) {
+
+						$query->the_post();
+
+						$post_id = get_the_ID();
+					}
+				}
+				
+				
+				if(!empty($post_id) ){
+					$this->add_update_wooProduct($data, $post_id);
+				}else{
+                 $this->add_update_wooProduct($data, $post_id);
+				}
+			
+			return;
+			}
+			
+		}
+	}
+	public function fc_trademe_fetch_category()
+	{
+
+		if (isset($_REQUEST['fc_trademe_sync_category'])) {
+			$fc_trademe = $this->trademe;
+
+
+			$url = 'https://api.trademe.co.nz/v1/Categories.json';
+
+			$header = '';
+			$method = 'GET';
+			$post_data = '';
+
+			$data = $this->api($url, $header, $method, $post_data);
+			
+			$data = json_decode($data['body'],true);
+
+			
+			$this->sync('sync_tm_category',$data['Subcategories']);
+		
+			
 		}
 	}
 	/**
@@ -223,13 +283,38 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 						'title'         => '',
 						'tabs'          => array(
 							array(
+								'title'     => 'FAQ',
+
+								'fields'    => array(
+									array(
+										'id'     => 'fc_faqs',
+										'type'   => 'repeater',
+										'title'  => 'Enter Answers',
+										'fields' => array(
+									  
+										  array(
+											'id'    => 'fc_faq',
+											'type'  => 'text',
+											'title' => 'Enter Answers for Questions'
+										  ),
+										  array(
+											'id'      => 'fc_faq_auto',
+											'type'    => 'checkbox',
+											'title'   => 'Auto Answer the Question',
+											
+											'default' => false // or false
+										  )
+										),
+									  ),
+								)
+							),
+							array(
 								'title'     => 'Schedules',
 
 								'fields'    => array(
 
 								)
 							),
-
 							array(
 								'title'     => 'API Settings',
 
@@ -357,6 +442,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 					echo '<a href="' . admin_url('admin.php?page=fc-trademe&fc_trademe_disable_activation=true') . '" style="float: right;margin-left:4px"  class="button button-primary"> Disable Activation</a>';
 
 					echo '<a href="' . admin_url('admin.php?page=fc-trademe&fc_trademe_sync_product=true') . '" style="float: right;margin-left:4px"   class="button button-primary">Product Sync</a>';
+					echo '<a href="' . admin_url('admin.php?page=fc-trademe&fc_trademe_sync_category=true') . '" style="float: right;margin-left:4px"   class="button button-primary">Category Sync</a>';
 				}
 
 
@@ -374,4 +460,132 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 			}
 		}
 	}
+	private function product_admin_init()
+    {
+        function fc_link() {
+           $link = get_post_meta($_REQUEST['post'],'fc-bc-int-options-shop-order-page')[0];
+          
+            echo '<a href="'.$link['fc-bookcloudLINK'].'" target="_blank" class="button-primary">Link</a> ';
+
+          }
+  
+      CSF::createMetabox($this->plugin_name.'detail-product-page', array(
+        'title'     => 'FC Trademe Listing Details',
+        'post_type' => 'product',
+      ));
+      CSF::createSection($this->plugin_name.'detail-product-page', array(
+       
+        'fields' => array(
+  
+          //
+          // A text field
+          array(
+            'id'    => 'fc_list_condition',
+            'type'  => 'select',
+            'title' => 'Condition',
+            'options'     => array(
+				'New'  => 'New',
+				'Used'  => 'Used',
+				
+			  ),
+
+          ),
+          
+         
+  
+  
+        )
+      ));
+	  CSF::createMetabox($this->plugin_name.'price-product-page', array(
+        'title'     => 'FC Trademe Listing Pricing & Duration',
+        'post_type' => 'product',
+      ));
+      CSF::createSection($this->plugin_name.'price-product-page', array(
+       
+        'fields' => array(
+  
+          //
+          // A text field
+          array(
+            'id'    => 'fc_list_type',
+            'type'  => 'select',
+            'title' => 'Listing Type',
+            'options'     => array(
+				'Reserve Listing'  => 'Reserve Listing',
+				'Buy Now Only'  => 'Buy Now Only',
+				
+			  ),
+
+          ),
+		  array(
+            'id'    => 'fc-condition',
+            'type'  => 'select',
+            'title' => 'Listing Duration',
+            'options'     => array(
+				'Default'  => 'Default',
+				'2 Days'  => '2 Days',
+				'3 Days'  => '3 Days',
+				'4 Days'  => '4 Days',
+				'5 Days'  => '5 Days',
+				'6 Days'  => '6 Days',
+				'7 Days'  => '7 Days',
+				'10 Days'  => '10 Days',
+				'14 Days'  => '14 Days',
+				
+				
+				
+			  ),
+
+          ),
+          array(
+            'id'    => 'fc_list_offer',
+            'type'  => 'text',
+            'title' => 'Listing Offer Price',
+            
+
+          ),
+         
+  
+  
+        )
+      ));
+	  CSF::createMetabox($this->plugin_name.'shipping-product-page', array(
+        'title'     => 'FC Trademe Listing Shipping',
+        'post_type' => 'product',
+      ));
+      CSF::createSection($this->plugin_name.'shipping-product-page', array(
+       
+        'fields' => array(
+  
+          //
+          // A text field
+          array(
+            'id'    => 'fc_list_freight_rate',
+            'type'  => 'text',
+            'title' => 'Listing Freight Rate',
+            
+
+          ),
+		  array(
+            'id'    => 'fc_list_pick-ups',
+            'type'  => 'select',
+            'title' => 'Listing Pick-ups',
+            'options'     => array(
+				'Default'  => 'Default',
+				'Buyer Can Pick-up' ,
+				'Buyer Must Pick-up'  ,
+				'No Pick-up'  ,
+				
+				
+				
+			  ),
+
+          ),
+         
+         
+  
+  
+        )
+      ));
+    }
 }
