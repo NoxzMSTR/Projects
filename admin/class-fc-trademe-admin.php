@@ -60,6 +60,9 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 		$this->fc_final_activate_api();
 		add_action('init', array($this,'fc_trademe_fetch_product'));
 		add_action('init', array($this,'fc_trademe_fetch_category'));
+		add_filter( 'woocommerce_get_price_html', array($this,'fc_custom_price_html'), 100, 2 );
+		add_filter('admin_comment_types_dropdown', array(&$this, 'add_comment_type'));
+		add_filter( 'woocommerce_product_tabs', array($this,'woo_product_tabs'), 98 );
 		
 	}
 
@@ -108,6 +111,26 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 
 		wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/fc-trademe-admin.js', array('jquery'), $this->version, false);
 	}
+
+
+	function fc_custom_price_html( $price, $product ) {
+
+		$sales_price_from = get_post_meta( $product->id, '_sale_price_dates_from', true );
+		$sales_price_to   = get_post_meta( $product->id, '_sale_price_dates_to', true );
+	
+		if ( is_single()  && $sales_price_to != "" ) {
+	
+		    $sales_price_date_from = date( "j M y", $sales_price_from );
+			$sales_price_date_to   = date( "j M y", $sales_price_to );
+			
+			 $price = str_replace( '</bdi>', ' </bdi> <b>(Offer from ' . $sales_price_date_from . ' till ' . $sales_price_date_to . ')</b>', $price );
+		}
+	
+		return apply_filters( 'woocommerce_get_price', $price );
+	}
+
+
+
 	private function fc_activate_api()
 	{
 
@@ -186,10 +209,10 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 			
 			$data = json_decode($data['body'],true);
 
-
+			
 			
 			foreach ($data['List'] as $productData) {
-
+				$productData['ListingId'] = '3169668060';
 				$url = 'https://api.trademe.co.nz/v1/Listings/'.$productData['ListingId'].'.json';
 				$data = $this->api($url, $header, $method, $post_data);
 				$data = json_decode($data['body'],true);
@@ -212,12 +235,17 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 				}
 				
 				
+				
+				
 				if(!empty($post_id) ){
 					$this->add_update_wooProduct($data, $post_id);
 				}else{
-                 $this->add_update_wooProduct($data, $post_id);
+					
+                	 $this->add_update_wooProduct($data, $post_id);
+				
+					 
 				}
-			
+				exit;
 			return;
 			}
 			
@@ -246,6 +274,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 			
 		}
 	}
+	
 	/**
 	 * Method to create admin options
 	 *

@@ -38,5 +38,27 @@ class Fc_Trademe_API  {
 		));
 		return $data;
 	}
+	public function add_comment_type($args) {
+        $this->comment_types = $args;
+        $args['trcomment'] = __('Trademe Comments', 'fc-trademe');
+       
+        return $args;
+    }
+	
+	function woo_product_tabs( $tabs ) {
 
+		$fc_comment_tab = array(
+            'title' => 'Comments',
+            'priority' => 2,
+            'callback' => array(&$this, 'woo_product_tabs_content')
+        );
+        $tabs['fc_comment_tab'] = $fc_comment_tab;
+       
+		return $tabs;
+	}
+	function woo_product_tabs_content( $tabs ) {
+
+		require get_template_directory() . '/comments.php';
+		
+	}
 }

@@ -26,7 +26,8 @@ trait Fc_Trademe_Admin_Woo_Sync
     
     public function add_update_wooProduct($productData, $post_id)
     {
-      
+         $agent = $_SERVER['HTTP_USER_AGENT'];
+         $agent_ip = $_SERVER['REMOTE_HOST'];
         //BookCloud Panel option
         if (empty($post_id)) {
             if (empty($productData['Body'])) {
@@ -43,7 +44,51 @@ trait Fc_Trademe_Admin_Woo_Sync
             // print_r($post);
             //Create post
             $post_id = wp_insert_post($post);
-            echo ' Fetched The Item and id is : ' . $post_id;
+            if(isset($productData['Questions'])){
+                foreach($productData['Questions']['List'] as $question){
+                    $CommentDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$question['CommentDate']))));
+                    $data = array(
+                        'comment_post_ID' => $post_id ,
+                        'comment_author' => $question['AskingMember']['Nickname'],
+                        'comment_author_email' => '',
+                        'comment_author_url' => '',
+                        'comment_content' => $question['Comment'],
+                        'comment_author_IP' => $agent_ip,
+                        'comment_agent' => $agent,
+                        'comment_type'  => 'trcomment',
+                        'comment_date' => date('Y-m-d H:i:s',ceil($CommentDate / 1000)),
+                        'comment_date_gmt' => date('Y-m-d H:i:s',ceil($CommentDate / 1000)),
+                        'comment_approved' => 1,
+                    
+                    );
+                  
+                    $comment_id = wp_insert_comment($data);
+                    add_comment_meta($comment_id,'ListingQuestionId',$question['ListingQuestionId']);
+                    if(!empty($question['Answer'])){
+                        $AnswerDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$question['AnswerDate']))));
+                        $data = array(
+                            'comment_post_ID' => $post_id ,
+                            'comment_author' => $productData['Member']['Nickname'],
+                            'comment_author_email' => '',
+                            'comment_author_url' => '',
+                            'comment_parent' =>  $comment_id,
+                            'comment_content' => $question['Answer'],
+                            'comment_author_IP' => $agent_ip,
+                            'comment_agent' => $agent,
+                            'comment_type'  => 'trcomment',
+                            'comment_date' => date('Y-m-d H:i:s',ceil($AnswerDate / 1000)),
+                            'comment_date_gmt' => date('Y-m-d H:i:s',ceil($AnswerDate / 1000)),
+                            'comment_approved' => 1,
+                        
+                        );
+                      
+                        $comment_id = wp_insert_comment($data);
+                       
+                    }
+                    echo ' Fetched The Item and id is : ' . $post_id;
+                }
+             }
+           
         } else {
             $post = array(
                 'ID' => esc_sql($post_id),
@@ -52,6 +97,60 @@ trait Fc_Trademe_Admin_Woo_Sync
             );
             $result = wp_update_post($post, true);
             echo ' Fetched The Item and id is : ' . $post_id;
+            if(isset($productData['Questions'])){
+              
+               
+                foreach($productData['Questions']['List'] as $question){
+                    
+                    $comments =  $this->get_custom_comment($post_id,$question['ListingQuestionId'])[0];
+                    
+                    
+                    if(empty($comments->comment_ID)){
+                        $CommentDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$question['CommentDate']))));
+                        $data = array(
+                            'comment_post_ID' => $post_id ,
+                            'comment_author' => $question['AskingMember']['Nickname'],
+                            'comment_author_email' => '',
+                            'comment_author_url' => '',
+                            'comment_content' => $question['Comment'],
+                            'comment_author_IP' => $agent_ip,
+                            'comment_agent' => $agent,
+                            'comment_type'  => '',
+                            'comment_date' => date('Y-m-d H:i:s',ceil($CommentDate / 1000)),
+                            'comment_date_gmt' => date('Y-m-d H:i:s',ceil($CommentDate / 1000)),
+                            'comment_approved' => 1,
+                        
+                        );
+                      
+                        $comment_id = wp_insert_comment($data);
+                        add_comment_meta($comment_id,'ListingQuestionId',$question['ListingQuestionId']);
+                        if(!empty($question['Answer'])){
+                            $AnswerDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$question['AnswerDate']))));
+                            $data = array(
+                                'comment_post_ID' => $post_id ,
+                                'comment_author' => $productData['Member']['Nickname'],
+                                'comment_author_email' => '',
+                                'comment_author_url' => '',
+                                'comment_parent' =>  $comment_id,
+                                'comment_content' => $question['Answer'],
+                                'comment_author_IP' => $agent_ip,
+                                'comment_agent' => $agent,
+                                'comment_type'  => '',
+                                'comment_date' => date('Y-m-d H:i:s',ceil($AnswerDate / 1000)),
+                                'comment_date_gmt' => date('Y-m-d H:i:s',ceil($AnswerDate / 1000)),
+                                'comment_approved' => 1,
+                            
+                            );
+                          
+                            $comment_id = wp_insert_comment($data);
+                           
+                        }
+                    }
+                   
+                }
+             }
+           
+          
         }
 
 
@@ -65,6 +164,10 @@ trait Fc_Trademe_Admin_Woo_Sync
             update_post_meta($post_id, '_condition', 'Used');
             //wp_set_object_terms($post_id, 'Used', 'product_cat');
         }
+        $StartDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$productData['StartDate']))));
+        $EndDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$productData['EndDate']))));
+			
+
         
 
         wp_set_object_terms($post_id, 'simple', 'product_type');
@@ -77,7 +180,7 @@ trait Fc_Trademe_Admin_Woo_Sync
         update_post_meta($post_id, '_downloadable', 'no');
         update_post_meta($post_id, '_virtual', 'no');
 
-        update_post_meta($post_id, '_regular_price', $productData['StartPrice']);
+        update_post_meta($post_id, '_regular_price', $productData['WasPrice']);
         update_post_meta($post_id, '_sale_price', $productData['BuyNowPrice']);
         update_post_meta($post_id, '_purchase_note', "");
         update_post_meta($post_id, '_featured', "no");
@@ -87,8 +190,8 @@ trait Fc_Trademe_Admin_Woo_Sync
         update_post_meta($post_id, '_height', "");
         update_post_meta($post_id, '_sku', $productData['SKU']);
         update_post_meta($post_id, '_product_attributes', array());
-        update_post_meta($post_id, '_sale_price_dates_from', $productData['StartDate']);
-        update_post_meta($post_id, '_sale_price_dates_to',$productData['EndDate']);
+        update_post_meta($post_id, '_sale_price_dates_from', date('c',ceil($StartDate / 1000)));
+        update_post_meta($post_id, '_sale_price_dates_to',date('c',ceil($EndDate / 1000)));
         update_post_meta($post_id, '_price', $productData['BuyNowPrice']);
         update_post_meta($post_id, '_sold_individually', "");
         update_post_meta($post_id, '_manage_stock', "yes");
@@ -120,14 +223,12 @@ trait Fc_Trademe_Admin_Woo_Sync
         foreach ($productData['Photos'] as $key => $imgurl) {
             
             if ($key !== 0) {
-              echo  $attachmentId[] =  $this->upload_image($imgurl['Value']['FullSize'], $post_id, 'gallery');
-            }else{
-                $attachmentId[] = 0;
+                $attachmentId[] =  $this->upload_image($imgurl['Value']['FullSize'], $post_id, 'gallery');
             }
         }
-        if( $attachmentId[0] !== 0){
+        
           update_post_meta($post_id, '_product_image_gallery', implode(", ", $attachmentId));
-        }
+        
     }
     /**
      * Method to Upload Image of BC Products To WOO
@@ -169,6 +270,9 @@ trait Fc_Trademe_Admin_Woo_Sync
         }else{
             $page = get_page_by_title($title, OBJECT, 'attachment');
             $attachmentId = $page->ID;
+            if ($type == 'main') {
+                update_post_meta($post_id, '_thumbnail_id', $attachmentId);
+            }
         }
     }
         return $attachmentId;
@@ -194,6 +298,23 @@ trait Fc_Trademe_Admin_Woo_Sync
             // die;
 
         }
+    }
+       /**
+     * Method to Get Woo Custom Comments 
+     *
+     * @return void
+     */
+    public function get_custom_comment($post_id,$list_id)
+    {
+        global $wpdb;
+        $query = "SELECT * 
+                FROM $wpdb->comments 
+                INNER JOIN $wpdb->commentmeta ON $wpdb->comments.comment_ID = $wpdb->commentmeta.comment_id
+                WHERE $wpdb->comments.comment_post_ID = $post_id AND $wpdb->comments.comment_type = 'comment' AND $wpdb->commentmeta.meta_value = $list_id
+                ";
+        $results = $wpdb->get_results($query);
+        return  $results;
+            
     }
     /**
      * Method to Delete Woo Product and sync market error to BC
