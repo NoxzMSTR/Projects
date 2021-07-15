@@ -245,7 +245,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 				
 					 
 				}
-				exit;
+				
 			return;
 			}
 			
