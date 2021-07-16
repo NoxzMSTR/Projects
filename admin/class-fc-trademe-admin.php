@@ -22,7 +22,7 @@
  */
 class Fc_Trademe_Admin extends Fc_Trademe_API
 {
-	use Fc_Trademe_Admin_Woo_Sync;
+	
 	/**
 	 * The ID of this plugin.
 	 *
@@ -48,12 +48,17 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 	 * @param      string    $plugin_name       The name of this plugin.
 	 * @param      string    $version    The version of this plugin.
 	 */
+	use Fc_Trademe_Admin_Woo_Sync;
 	public function __construct($plugin_name, $version)
 	{
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-		$this->trademe = get_option($this->plugin_name)['fc_tab'];;
+		$this->trademe = get_option($this->plugin_name)['fc_tab'];
+		$fc_trademe = $this->trademe;
+		$this->header = array(
+			'Authorization' => 'OAuth oauth_consumer_key="' . $fc_trademe['fc_consumer_key'] . '",oauth_token="' . $fc_trademe['fc_group']['fc_final_token'] . '",oauth_signature_method="' . $fc_trademe['fc_signature_method'] . '",oauth_callback="' . $fc_trademe['fc_callback_url'] . '",oauth_signature="' . $fc_trademe['fc_signature'] . '%26' . $fc_trademe['fc_group']['fc_final_token_secret'] . '"'
+		);
 		$this->admin_init();
 		$this->product_admin_init();
 		$this->fc_activate_api();
@@ -63,6 +68,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 		add_filter( 'woocommerce_get_price_html', array($this,'fc_custom_price_html'), 100, 2 );
 		add_filter('admin_comment_types_dropdown', array(&$this, 'add_comment_type'));
 		add_filter( 'woocommerce_product_tabs', array($this,'woo_product_tabs'), 98 );
+		add_action('save_post', array($this, 'update_on_post'));
 		
 	}
 
@@ -115,21 +121,50 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 
 	function fc_custom_price_html( $price, $product ) {
 
-		$sales_price_from = get_post_meta( $product->id, '_sale_price_dates_from', true );
-		$sales_price_to   = get_post_meta( $product->id, '_sale_price_dates_to', true );
-	
+		 $sales_price_from = date('c');
+		 $sales_price_to   = get_post_meta( $product->id, '_sale_price_dates_to', true );
+		$date1 = "2007-03-24";
+		$date2 = "2009-06-26";
+		
+		$diff = abs(strtotime($sales_price_to) - strtotime($sales_price_from));
+		
+		$years = floor($diff / (365*60*60*24));
+		$months = floor(($diff - $years * 365*60*60*24) / (30*60*60*24));
+		$days = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+		$hours   = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24 - $days*60*60*24)/ (60*60)); 
+
+		$minuts  = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24 - $days*60*60*24 - $hours*60*60)/ 60); 
+
+		$seconds = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24 - $days*60*60*24 - $hours*60*60 - $minuts*60)); 
+		
 		if ( is_single()  && $sales_price_to != "" ) {
 	
-		    $sales_price_date_from = date( "j M y", $sales_price_from );
-			$sales_price_date_to   = date( "j M y", $sales_price_to );
+		    
+			if(strtotime($sales_price_from) > strtotime($sales_price_to)){
+				add_filter( 'woocommerce_is_purchasable', '__return_false' );
+				remove_action('woocommerce_after_shop_loop_item', 'woocommerce_template_loop_add_to_cart');
+				$price = str_replace( '</bdi>', ' </bdi> <b>(Offer Closed,   ' .date('D d M \, h:i:s a ', strtotime($sales_price_to)). ' )</b>', $price );
+			}else{
+				$price = str_replace( '</bdi>', ' </bdi> <b>(Offer Closes in ' .$days. ' Days And time is ' .date('h:i:s a', strtotime($hours  . ':'.$minuts)).')</b>', $price );
+			}
 			
-			 $price = str_replace( '</bdi>', ' </bdi> <b>(Offer from ' . $sales_price_date_from . ' till ' . $sales_price_date_to . ')</b>', $price );
+		}else{
+		
+			remove_action( 'woocommerce_after_shop_loop_item', 'woocommerce_template_loop_add_to_cart');
+				
+			
 		}
 	
 		return apply_filters( 'woocommerce_get_price', $price );
 	}
 
+	function command( $value ) {
+				
+		$value = 'false';
 
+		return $value;
+
+		}
 
 	private function fc_activate_api()
 	{
@@ -194,22 +229,22 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 	{
 
 		if (isset($_REQUEST['fc_trademe_sync_product'])) {
-			$fc_trademe = $this->trademe;
+			
 
 
 			$url = 'https://api.trademe.co.nz/v1/MyTradeMe/SellingItems/All.json';
 
-			$header = array(
-				'Authorization' => 'OAuth oauth_consumer_key="' . $fc_trademe['fc_consumer_key'] . '",oauth_token="' . $fc_trademe['fc_group']['fc_final_token'] . '",oauth_signature_method="' . $fc_trademe['fc_signature_method'] . '",oauth_callback="' . $fc_trademe['fc_callback_url'] . '",oauth_signature="' . $fc_trademe['fc_signature'] . '%26' . $fc_trademe['fc_group']['fc_final_token_secret'] . '"'
-			);
+			$header = $this->header;
 			$method = 'GET';
 			$post_data = '';
+			if(empty($_REQUEST['listID'])){
+			
 
 			$data = $this->api($url, $header, $method, $post_data);
 			
 			$data = json_decode($data['body'],true);
 
-			
+		
 			
 			foreach ($data['List'] as $productData) {
 				$productData['ListingId'] = '3169668060';
@@ -245,12 +280,47 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 				
 					 
 				}
-				
-			return;
-			}
+				exit;
+				return;
+				}
 			
+			}else{
+				$productData['ListingId'] = $_REQUEST['listID'];
+				$url = 'https://api.trademe.co.nz/v1/Listings/'.$productData['ListingId'].'.json';
+				$data = $this->api($url, $header, $method, $post_data);
+				$data = json_decode($data['body'],true);
+				$args = array(
+					'meta_key' => '_ListingId',
+					'meta_value' => $productData['ListingId'],
+					'post_type' => 'product'
+				);
+			
+				$query = new WP_Query($args);
+				
+				if ($query->have_posts()) {
+					
+					while ($query->have_posts()) {
+
+						$query->the_post();
+
+						$post_id = get_the_ID();
+					}
+				}
+				
+				
+				
+				
+				if(!empty($post_id) ){
+					$this->add_update_wooProduct($data, $post_id);
+				}else{
+					
+                	 $this->add_update_wooProduct($data, $post_id);
+				 
+				}
+			}
 		}
 	}
+
 	public function fc_trademe_fetch_category()
 	{
 
@@ -312,27 +382,43 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 						'title'         => '',
 						'tabs'          => array(
 							array(
-								'title'     => 'FAQ',
+								'title'     => 'Unanswered Questions',
 
 								'fields'    => array(
 									array(
-										'id'     => 'fc_faqs',
+										'id'     => 'fc_qus',
+										'type'   => 'repeater',
+										'title'  => 'Questions',
+										'fields' => array(
+									  
+										  array(
+											'id'    => 'fc_qu',
+											'type'  => 'content',
+											'title' => 'Questions',
+											
+										  ),
+										 
+										),
+									  ),
+								)
+							),
+							array(
+								'title'     => 'Answers',
+
+								'fields'    => array(
+									array(
+										'id'     => 'fc_qas',
 										'type'   => 'repeater',
 										'title'  => 'Enter Answers',
 										'fields' => array(
 									  
 										  array(
-											'id'    => 'fc_faq',
+											'id'    => 'fc_qa',
 											'type'  => 'text',
-											'title' => 'Enter Answers for Questions'
+											'title' => 'Enter Answers for Questions',
+											'after' => '<br>they will be available in Unanswered questions'
 										  ),
-										  array(
-											'id'      => 'fc_faq_auto',
-											'type'    => 'checkbox',
-											'title'   => 'Auto Answer the Question',
-											
-											'default' => false // or false
-										  )
+										 
 										),
 									  ),
 								)
@@ -513,8 +599,8 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
             'type'  => 'select',
             'title' => 'Condition',
             'options'     => array(
-				'New'  => 'New',
-				'Used'  => 'Used',
+				'true'  => 'New',
+				'false'  => 'Used',
 				
 			  ),
 
@@ -540,26 +626,26 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
             'type'  => 'select',
             'title' => 'Listing Type',
             'options'     => array(
-				'Reserve Listing'  => 'Reserve Listing',
-				'Buy Now Only'  => 'Buy Now Only',
+				'0'  => 'Reserve Listing',
+				'1'  => 'Buy Now Only',
 				
 			  ),
 
           ),
 		  array(
-            'id'    => 'fc-condition',
+            'id'    => 'fc_duration',
             'type'  => 'select',
             'title' => 'Listing Duration',
             'options'     => array(
-				'Default'  => 'Default',
-				'2 Days'  => '2 Days',
-				'3 Days'  => '3 Days',
-				'4 Days'  => '4 Days',
-				'5 Days'  => '5 Days',
-				'6 Days'  => '6 Days',
-				'7 Days'  => '7 Days',
-				'10 Days'  => '10 Days',
-				'14 Days'  => '14 Days',
+				'0'  => 'Default',
+				'2'  => '2 Days',
+				'3'  => '3 Days',
+				'4'  => '4 Days',
+				'5'  => '5 Days',
+				'6'  => '6 Days',
+				'7'  => '7 Days',
+				'10'  => '10 Days',
+				'14'  => '14 Days',
 				
 				
 				
@@ -600,10 +686,10 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
             'type'  => 'select',
             'title' => 'Listing Pick-ups',
             'options'     => array(
-				'Default'  => 'Default',
-				'Buyer Can Pick-up' ,
-				'Buyer Must Pick-up'  ,
-				'No Pick-up'  ,
+				'0'  => 'Default',
+				'1'  =>'Buyer Can Pick-up' ,
+				'2'  =>'Buyer Must Pick-up'  ,
+				'3'  =>'No Pick-up'  ,
 				
 				
 				

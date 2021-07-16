@@ -22,7 +22,15 @@
  */
 trait Fc_Trademe_Admin_Woo_Sync 
 {
-    
+    public function __construct() {
+      
+        $this->trademe = get_option('fc-trademe')['fc_tab'];
+		$fc_trademe = $this->trademe;
+		$this->header = array(
+			'Authorization' => 'OAuth oauth_consumer_key="' . $fc_trademe['fc_consumer_key'] . '",oauth_token="' . $fc_trademe['fc_group']['fc_final_token'] . '",oauth_signature_method="' . $fc_trademe['fc_signature_method'] . '",oauth_callback="' . $fc_trademe['fc_callback_url'] . '",oauth_signature="' . $fc_trademe['fc_signature'] . '%26' . $fc_trademe['fc_group']['fc_final_token_secret'] . '"'
+		);
+        
+     }
     
     public function add_update_wooProduct($productData, $post_id)
     {
@@ -45,6 +53,7 @@ trait Fc_Trademe_Admin_Woo_Sync
             //Create post
             $post_id = wp_insert_post($post);
             if(isset($productData['Questions'])){
+            
                 foreach($productData['Questions']['List'] as $question){
                     $CommentDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$question['CommentDate']))));
                     $data = array(
@@ -88,7 +97,7 @@ trait Fc_Trademe_Admin_Woo_Sync
                     echo ' Fetched The Item and id is : ' . $post_id;
                 }
              }
-           
+          
         } else {
             $post = array(
                 'ID' => esc_sql($post_id),
@@ -102,7 +111,7 @@ trait Fc_Trademe_Admin_Woo_Sync
                
                 foreach($productData['Questions']['List'] as $question){
                     
-                    $comments =  $this->get_custom_comment($post_id,$question['ListingQuestionId'])[0];
+                    $comments =  $this->get_custom_comment($post_id,$question['ListingQuestionId'],'comment')[0];
                     
                     
                     if(empty($comments->comment_ID)){
@@ -152,7 +161,7 @@ trait Fc_Trademe_Admin_Woo_Sync
            
           
         }
-
+        
 
 
         wp_set_object_terms($post_id, $productData['CategoryName'], 'product_cat');
@@ -228,6 +237,25 @@ trait Fc_Trademe_Admin_Woo_Sync
         }
         
           update_post_meta($post_id, '_product_image_gallery', implode(", ", $attachmentId));
+
+          if(isset($productData['Sales'])){
+            foreach($productData['Sales'] as $order_data){
+            $order_id =  get_post_meta( $post_id, '_order_id')[0];
+                
+            $purc_id =  get_post_meta( $order_id, 'PurchaseId')[0];
+            $order_data['PurchaseId'];
+                if($purc_id == $order_data['PurchaseId']){
+
+                }else{
+                    $order =  $this->add_order($order_data,$post_id);
+                    $order = json_decode($order,true);
+                    update_post_meta( $post_id, '_order_id', $order['id']);
+                }
+          
+            
+            }
+          
+        }
         
     }
     /**
@@ -288,14 +316,190 @@ trait Fc_Trademe_Admin_Woo_Sync
 
         if ($_REQUEST['action'] == 'editpost' && $_REQUEST['post_type'] == 'product') {
 
+            $listID = get_post_meta( $post_id, 'ListingId')[0];
+        
+           
+           if(empty($listID)){
+            $term = get_term_by('term_id', $_REQUEST['tax_input']['product_cat'][1], 'product_cat');
 
-            $_REQUEST['type'] = 'update_product_market_id';
+                        if (!empty($term)) {
+                            $term_id = $term->term_id;
+                            $term_name = $term->name;
+                            $term_slug = $term->slug;
+                            '';
+                        }
+                      
+                    if($_REQUEST['fc-trademeprice-product-page']['fc_list_type'] == 0){
+                        $rprice = $_REQUEST['_sale_price']; 
+                        
+                    }
+                    
+                    else{
+                        $rprice = 0; 
+                    } 
+                    if($_REQUEST['fc-trademeprice-product-page']['fc_list_type'] == 1){
+                        $bprice = $_REQUEST['_sale_price']; 
+                        $bwasprice = $_REQUEST['_regular_price']; 
+                        $bclear = 'true';
+                    }
+                    
+                    else{
+                        $bprice = $_REQUEST['_sale_price']; 
+                        $bwasprice = 0; 
+                        $bclear = 'false';
+                    }  
 
-            $_REQUEST['interval_sec'] = 3;
-            $this->check_sync();
-            // '<pre>';
-            // print_r($_REQUEST);
-            // die;
+                    if(!empty($_REQUEST['attribute_names'])){
+                      $attributes = '"Attributes": [';
+                   $count = count($_REQUEST['attribute_names']);
+                   $i = 1;
+                    foreach($_REQUEST['attribute_names'] as $key => $attr){
+                        
+                        if($count==$i++){
+                        
+                            $attributes .= '{
+                                "Name": "'.$attr.'",
+                                "DisplayName": "'.$attr.'",
+                                "Value": "'.$_REQUEST['attribute_values'][$key] .'",
+                                "Type": 0,
+                               
+                                "IsRequiredForSell": false,
+                                
+                                "DisplayValue": "'.$_REQUEST['attribute_values'][$key] .'"
+                            }';
+                        }else{
+                            $attributes .= '{
+                                "Name": "'.$attr.'",
+                                "DisplayName": "'.$attr.'",
+                                "Value": "'.$_REQUEST['attribute_values'][$key] .'",
+                                "Type": 0,
+                               
+                                "IsRequiredForSell": false,
+                                
+                                "DisplayValue": "'.$_REQUEST['attribute_values'][$key] .'"
+                            },';
+                        }
+                    }
+                    $attributes .= '],';
+                }
+                    $photos = ' "Photos": [';
+                    $image_url = wp_get_attachment_image_src( get_post_thumbnail_id( $post_id ), 'single-post-thumbnail' );
+                    $gallery = get_post_gallery_images($post_id);
+                     
+                         $photos .=   '{
+                            "Key": 123,
+                            "Value": {
+                                "FullSize" : "'.$image_url[0].'"
+                            }
+                        }';
+                        foreach( explode(',',$_REQUEST['product_image_gallery']) as $attachment_id ) {   
+                            if(empty($attachment_id )){
+                                $attachment_id =  rand(3666,6556);
+                            }
+                            $photos .=   ',{
+                                "Key": '.$attachment_id .',
+                                "Value": {
+                                    "FullSize" : "'.wp_get_attachment_url( $attachment_id ).'"
+                                }
+                            }';
+                        }
+                         $photos .= ']';
+                         !empty($_REQUEST['_width']) ? $_REQUEST['_width'] : $_REQUEST['_width'] = 0 ;
+                         !empty($_REQUEST['_height']) ? $_REQUEST['_height'] : $_REQUEST['_height'] = 0 ;
+                         !empty($_REQUEST['_length']) ? $_REQUEST['_length'] : $_REQUEST['_length'] = 0 ;
+            $json = '{
+                "Category": "'.$term_slug.'-",
+                "Title": "'.$_REQUEST['post_title'].'",
+                "Subtitle": "ABC",
+                "Description": [
+                    "'.$_REQUEST['content'].'"
+                   
+                ],
+                "StartPrice": 0,
+                "ReservePrice": '.$rprice.',
+                "BuyNowPrice": '.$bprice.',
+                "Duration": '.$_REQUEST['fc-trademeprice-product-page']['fc_duration'].',
+                "EndDateTime": "\/Date('.strtotime(date('c')).')\/",
+                "Pickup": '.$_REQUEST['fc-trademeshipping-product-page']['fc_list_pick-ups'].',
+                
+                "IsBrandNew": '.$_REQUEST['fc-trademedetail-product-page']['fc_list_condition'].',
+                
+                "Quantity": '.$_REQUEST['_stock'].',
+                "IsClearance": '.$bclear.',
+                
+                "ShippingOptions": [
+                    {
+                        "Type": 1,
+                        "Price": '.$_REQUEST['_sale_price'].',
+                        "Method": "ABC",
+                        "ShippingId": 123,
+                        "TaxesIncluded": [
+                            {
+                                "Type": 1,
+                                "Country": "ABC",
+                                "Name": "ABC",
+                                "FlatRate": 5.0,
+                                "Description": "ABC",
+                                
+                                "TaxAmount": 5.0,
+                                "WasPriceTaxAmount": 4.0
+                            }
+                            
+                        ]
+                    }
+                  
+                ],
+                "PaymentMethods": [
+                   1
+                    
+                ],
+                '.$attributes.'
+               
+                "ExternalReferenceId": "'.$_REQUEST['post_ID'].'",
+
+                
+              
+                "SKU": "'.$_REQUEST['_sku'].'",
+
+              
+                "WasPrice": '.$bwasprice.',
+              
+               
+                "ShippingCalculatorInputs": {
+                    "IsBoxType": false,
+                    "Width": '.$_REQUEST['_width'].',
+                    "Height": '.$_REQUEST['_height'].',
+                    "Depth": '.$_REQUEST['_length'].',
+                    "IsSignatureRequired": false,
+                    "PickupLocalityId": 123,
+                    "IsRural": false,
+                    "PackagingOption": 1,
+                    "WeightOption": 1,
+                    "FilterOption": 0
+                },
+              
+             
+              
+                
+                
+               '.$photos.'
+            }';
+            $url = 'https://api.trademe.co.nz/v1/Selling.json';
+
+			$header = $this->header;
+            $header = array_merge($header,array('Content-Type' => 'application/json'));
+			$method = 'POST';
+			$post_data = $json;
+			
+			
+
+			$data = $this->api($url, $header, $method, $post_data);
+			
+			$data = json_decode($data['body'],true);
+            
+            update_post_meta( $post_id, 'ListingId', $data['ListingId']);
+        
+        }
 
         }
     }
@@ -304,13 +508,13 @@ trait Fc_Trademe_Admin_Woo_Sync
      *
      * @return void
      */
-    public function get_custom_comment($post_id,$list_id)
+    public function get_custom_comment($post_id,$list_id,$type)
     {
         global $wpdb;
         $query = "SELECT * 
                 FROM $wpdb->comments 
                 INNER JOIN $wpdb->commentmeta ON $wpdb->comments.comment_ID = $wpdb->commentmeta.comment_id
-                WHERE $wpdb->comments.comment_post_ID = $post_id AND $wpdb->comments.comment_type = 'comment' AND $wpdb->commentmeta.meta_value = $list_id
+                WHERE $wpdb->comments.comment_post_ID = $post_id AND $wpdb->comments.comment_type = $type AND $wpdb->commentmeta.meta_value = $list_id
                 ";
         $results = $wpdb->get_results($query);
         return  $results;
@@ -384,17 +588,60 @@ trait Fc_Trademe_Admin_Woo_Sync
      *
      * @return void
      */
-    public function add_order($order_id)
+    public function add_order($order_data,$product_id)
     {
 
 
-        if (!$order_id) {
-            return;
-        }
-        if (is_checkout() || !empty(is_wc_endpoint_url('order-received')) || !empty($order_id)) {
-            $order = wc_get_order($order_id);
-       
-        }
+        
+        global $woocommerce;
+             // Create product
+    
+    
+     $_SERVER['REMOTE_ADDR'];
+     // Required, else wc_create_order throws an exception
+     $order = wc_create_order();
+     // Add order products
+     $item_id = $order->add_product( get_product($product_id), $order_data['QuantitySold']);
+     // Set billing address
+     $billing_address = array('country' => $order_data['DeliveryAddress']['Country'],
+      'first_name' => explode(' ',$order_data['DeliveryAddress']['Name'])[0], 
+      'last_name' => explode(' ',$order_data['DeliveryAddress']['Name'])[1], 
+      'company' => '', 
+      'address_1' => $order_data['DeliveryAddress']['Address1'],
+      'address_2' => $order_data['DeliveryAddress']['Address2'],
+        'postcode' => $order_data['DeliveryAddress']['Postcode'],
+         'city' => $order_data['DeliveryAddress']['City'], 
+         'state' => $order_data['DeliveryAddress']['Suburb'], 
+         'email' => $order_data['Buyer']['Email'], 
+         'phone' => $order_data['DeliveryAddress']['PhoneNumber']);
+
+     $order->set_address($billing_address, 'billing');
+    
+     // Set totals
+     $order->set_total($order_data['TotalShippingPrice'], 'shipping');
+
+     
+     
+     $order->set_total($order_data['TotalSalePrice'], 'total');
+     $note = __($order_data['MessageFromBuyer']);
+
+     // Add the note
+     $order->add_order_note( $note );
+     $note = __($order_data['PaymentInstructions']);
+
+     // Add the note
+     $order->add_order_note( $note ,1);
+     update_post_meta( $order->id, 'PurchaseId', $order_data['PurchaseId'] ); 
+     update_post_meta( $order->id, 'Method', $order_data['Method'] ); 
+     update_post_meta( $order->id, 'PaymentType', $order_data['PaymentDetails']['PaymentType'] ); 
+     update_post_meta( $order->id, 'PaymentMethodFee', $order_data['PaymentDetails']['PaymentMethodFee'] ); 
+     
+     update_post_meta( $order->id, 'SelectedShipping', $order_data['SelectedShipping']); 
+     update_post_meta( $order->id, 'ShippingType',$order_data['ShippingType'] ); 
+     update_post_meta( $order->id, 'PaymentMethodUsed', $order_data['PaymentMethodUsed'] ); 
+     update_post_meta( $order->id, 'PaymentMethod', $order_data['PaymentMethod'] ); 
+     // 4 x $10 simple helper product
+     return wc_get_order($order->id);
     }
     /**
      * Method to Update Woo Order and sync to BC
