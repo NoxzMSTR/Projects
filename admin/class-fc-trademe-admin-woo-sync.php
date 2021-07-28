@@ -824,10 +824,37 @@ trait Fc_Trademe_Admin_Woo_Sync
 
    
         }
+        if ($type == 'sync_unQ') {
 
+            
+                   
+            $this->add_unQ($data);
+           
+
+   
+        }
       
     }
-
+    function add_unQ($data){
+                echo '<pre>';
+                $unansQA =  get_option( 'fc_trademe_unans_ques' );
+                print_r($unansQA);
+                die;
+                foreach($data as $gdata)
+                $CommentDate = trim(str_replace(')','',str_replace('Date(','',str_replace('/','',$gdata['CommentDate']))));
+			
+                
+                $listdata[] = array(
+                    'ListingId' => $gdata['ListingId'],
+                    'ListingQuestionId' => $gdata['ListingQuestionId'],
+                    'Comment' => $gdata['Comment'],
+                    'CommentDate' => date('c',ceil($CommentDate / 1000))
+                );
+				print_r($listdata);
+               
+				update_option('fc_trademe_unans_ques', $listdata);
+                
+    }
     function set_category($data,$parent_term_id){
         $i = 0;
         foreach($data as $cat_data){

@@ -30,7 +30,7 @@ class Fc_Trademe_Activator {
 	 * @since    1.0.0
 	 */
 	public static function activate() {
-
+		add_option( 'fc_trademe_unans_ques' , '' );
 	}
 
 }

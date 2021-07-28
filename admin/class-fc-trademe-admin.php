@@ -63,6 +63,7 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 		$this->product_admin_init();
 		$this->fc_activate_api();
 		$this->fc_final_activate_api();
+		$this->fc_trademe_fetch_unanswered_questions();
 		add_action('init', array($this,'fc_trademe_fetch_product'));
 		add_action('init', array($this,'fc_trademe_fetch_category'));
 		add_filter( 'woocommerce_get_price_html', array($this,'fc_custom_price_html'), 100, 2 );
@@ -344,7 +345,29 @@ class Fc_Trademe_Admin extends Fc_Trademe_API
 			
 		}
 	}
-	
+	public function fc_trademe_fetch_unanswered_questions()
+	{
+
+		if (isset($_REQUEST['fc_trademe_unanswered_questions'])) {
+			$fc_trademe = $this->trademe;
+
+
+			$url = 'https://api.trademe.co.nz/v1/Listings/questions/unansweredquestions.json';
+
+			$header = $this->header;
+			$method = 'GET';
+			$post_data = '';
+
+			$data = $this->api($url, $header, $method, $post_data);
+			
+			$data = json_decode($data['body'],true);
+			
+			
+			$this->sync('sync_unQ',$data['List']);
+		
+			
+		}
+	}
 	/**
 	 * Method to create admin options
 	 *
