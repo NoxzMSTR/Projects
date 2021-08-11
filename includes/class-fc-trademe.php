@@ -117,6 +117,8 @@ class Fc_Trademe {
 		 */
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-fc-trademe-api.php';
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin-woo-sync.php';
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin-sync.php';
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/partials/fc-trademe-admin-display.php';
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-fc-trademe-admin.php';
 		
 		

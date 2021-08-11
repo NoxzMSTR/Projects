@@ -30,3 +30,9 @@
 	 */
 
 })( jQuery );
+function fc_tab(tab_btn,tab_class){
+    jQuery('.csf-tabbed-active').removeClass('csf-tabbed-active')
+    jQuery(tab_btn).addClass('csf-tabbed-active')
+    jQuery('.csf-tabbed-section').addClass('hidden')
+    jQuery(tab_class).removeClass('hidden')
+}

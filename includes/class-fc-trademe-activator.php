@@ -31,9 +31,6 @@ class Fc_Trademe_Activator {
 	 */
 	public static function activate() {
 		add_option( 'fc_trademe_unans_ques' , '' );
-		add_option( 'fc_trademe_current_list' , '' );
-		add_option( 'fc_trademe_unans_ques' , '' );
-		add_option( 'fc_trademe_unans_ques' , '' );
 	}
 
 }
